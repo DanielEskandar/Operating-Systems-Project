@@ -17,7 +17,6 @@ typedef short bool;
 
 #define SHKEY 300
 
-
 ///==============================
 //don't mess with this variable//
 int * shmaddr;                 //
@@ -64,6 +63,28 @@ void destroyClk(bool terminateAll)
     {
         killpg(getpgrp(), SIGINT);
     }
+}
+
+int createProcess(char *file)
+{
+	int pid = fork();
+	if (pid == -1)
+	{
+		perror("Error in fork\n");
+	}
+	else if (pid == 0)
+	{
+		char *args[] = {file, NULL}; 
+		if (execvp(args[0], args) == -1)
+		{
+			printf("Error in executing %s\n", file);
+			exit(0);
+		}
+	}
+	else
+	{
+		return pid;
+	}
 }
 
 // arg for semctl system calls

@@ -1,8 +1,38 @@
+// scheduling algorithms
 #define HPF 0
 #define SRTN 1
 #define RR 2
+
+// PCB states
+#define RUNNING 1
+#define WAITING 0
+
+// log states
+#define STARTED 0
+#define STOPPED 1
+#define FINISHED 2
+#define RESUMED 3
+
+// output files
+#define LOG "scheduler.log"
+#define PERFORMANCE "scheduler.perf"
+
+// keys
+#define SIM_SIZE_SHM_KEY 400
 #define SCHEDULER_SHM_KEY 500
 #define SCHEDULER_SEM_KEY 600
+#define PCB_SEM_KEY 700
+
+struct PCB
+{
+	int id;
+	int state;
+	int arrivalTime;
+	int executionTime;
+	int remainingTime;
+	int waitingTime;
+	int priority;
+};
 
 struct process
 {
@@ -119,4 +149,31 @@ void enqueue(struct readyQueue *p_readyQueue, struct process *p_process, int sch
 			p_readyQueue->size++;
 			return;
 	}
+}
+
+void dequeue(struct readyQueue *p_readyQueue, struct process *p_process)
+{
+	// corner case: dequeue head
+	if (p_process == p_readyQueue->head)
+	{
+		p_readyQueue->head = p_process->next;
+		p_readyQueue->head->prev = NULL;
+		p_readyQueue->size--;
+		return;
+	}
+	
+	// corner case: dequeue tail
+	if (p_process == p_readyQueue->tail)
+	{
+		p_readyQueue->tail = p_process->next;
+		p_readyQueue->tail->next = NULL;
+		p_readyQueue->size--;
+		return;
+	}
+	
+	// normal case
+	p_process->prev->next = p_process->next;
+	p_process->next->prev = p_process->prev;
+	p_readyQueue->size--;
+	return;
 }

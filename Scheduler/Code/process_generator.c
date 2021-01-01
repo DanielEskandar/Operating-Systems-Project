@@ -4,10 +4,17 @@
 // definitions
 #define CLK_PROCESS "./clk.out"
 #define SCHEDULER_PROCESS "./scheduler.out"
+#define DEBUGGING
 
 // forward declarations
 void clearResources(int signum);
-int createProcess(char *file);
+
+// global variables
+int simSize_shmid;
+int scheduler_shmid;
+int scheduler_sem;
+int clk_pid;
+struct process *processArray;
 
 int main(int argc, char * argv[])
 {
@@ -21,7 +28,7 @@ int main(int argc, char * argv[])
 		return -1;
 	}
 
-	// count number of processes N
+	// count number of processes in simulation
 	int N = -1;
 	char c;
 	for (c = getc(pFile); c != EOF; c = getc(pFile))
@@ -30,14 +37,13 @@ int main(int argc, char * argv[])
 		{
 			N += 1;
 		}
-	}   
+	}
 	fclose(pFile);
-	printf("N = %d\n", N);
 
 	// read input file and create an array of processes
 	pFile = fopen(argv[1], "r");
-	struct process *processArray = (struct process *) malloc(N * sizeof(struct process));
-	fscanf(pFile, "%*[^\n]\n"); 
+	processArray = (struct process *) malloc(N * sizeof(struct process));
+	fscanf(pFile, "%*[^\n]\n");
 	for (int i = 0; i < N; i++)
 	{
 		fscanf(pFile, "%d\t%d\t%d\t%d\n", &processArray[i].id, &processArray[i].arrivalTime, &processArray[i].runningTime, &processArray[i].priority);
@@ -47,21 +53,16 @@ int main(int argc, char * argv[])
 	}
 	fclose(pFile);
 	
-	// create sempahore between scheduler and generator
-	int scheduler_sem = semget(SCHEDULER_SEM_KEY, 1, IPC_CREAT | 0644);
-	union Semun semun;
-	semun.val = 0;
-	if (semctl(scheduler_sem, 0, SETVAL, semun) == -1)
-	{
-		perror("Error in semctl\n");
-		exit(-1);
-	}
-	
+	// create shared memory between scheduler and generator to hold the simulation size
+	simSize_shmid = shmget(SIM_SIZE_SHM_KEY, sizeof(int), IPC_CREAT | 0644);
+	int *p_simSize = shmat(simSize_shmid, (void *)0, 0);
+	*p_simSize = N; // Total number of process in simulation
+		
 	// create shared memory between scheduler and generator
-	int scheduler_shmid = shmget(SCHEDULER_SHM_KEY, (sizeof(struct schedulerInfo) + sizeof(struct readyQueue) + (N * sizeof(struct process))), IPC_CREAT | 0644);
-	printf("Shared memory size = %ld\n", (sizeof(struct schedulerInfo) + sizeof(struct readyQueue) + (N * sizeof(struct process)))); 
-	struct schedulerInfo *p_schedulerInfo = (struct schedulerInfo *) shmat(scheduler_shmid, (void *)0, 0);
+	scheduler_shmid = shmget(SCHEDULER_SHM_KEY, (sizeof(struct schedulerInfo) + sizeof(struct readyQueue) + (N * sizeof(struct process))), IPC_CREAT | 0644); 
+	struct schedulerInfo *p_schedulerInfo = (struct schedulerInfo *) shmat(scheduler_shmid, (void *) 0, 0);
 	struct readyQueue *p_readyQueue = (struct readyQueue *) (p_schedulerInfo + 1);
+	
 	// initialize shared memory
 	p_schedulerInfo->generationFinished = false;
 	p_schedulerInfo->quantum = 0;
@@ -69,6 +70,16 @@ int main(int argc, char * argv[])
 	p_readyQueue->tail = NULL;
 	p_readyQueue->size = 0;
 	p_readyQueue->processArrival = false;
+	
+	// create sempahore between scheduler and generator
+	scheduler_sem = semget(SCHEDULER_SEM_KEY, 1, IPC_CREAT | 0644);
+	union Semun semun;
+	semun.val = 0;
+	if (semctl(scheduler_sem, 0, SETVAL, semun) == -1)
+	{
+		perror("Error in semctl\n");
+		exit(-1);
+	}
 	
 	// ask the user for the chose algorithm
 	int type;
@@ -85,7 +96,7 @@ int main(int argc, char * argv[])
 
 	// initiate and create the scheduler and clock processes.
 	int scheduler_pid = createProcess(SCHEDULER_PROCESS);
-	int clk_pid = createProcess(CLK_PROCESS);
+	clk_pid = createProcess(CLK_PROCESS);
 
 	// initialize clock
 	initClk();
@@ -102,6 +113,9 @@ int main(int argc, char * argv[])
 		{			 
 			*p_process = processArray[processIndex]; // physical allocation
 			enqueue(p_readyQueue, p_process, p_schedulerInfo->schedulerType);
+			#ifdef DEBUGGING
+				printf("process %d enqueued\n", p_process->id);
+			#endif
 			
 			if ((processIndex + 1) == N)
 			{
@@ -113,18 +127,11 @@ int main(int argc, char * argv[])
 		}
 					
 		// enable scheduler to operate on the ready queue
-		// up(scheduler_sem);
+		up(scheduler_sem);
 		
 		// wait until clk changes
 		while (currentTime == getClk());
 		currentTime = getClk();
-	}
-	
-	struct process *current = p_readyQueue->head;
-	while (current != NULL)
-	{
-		printf("%d\t%d\t%d\t%d\n", current->id, current->arrivalTime, current->runningTime, current->priority);
-		current = current->next;
 	}
 	
 	// Wait until scheduler finishes
@@ -133,11 +140,13 @@ int main(int argc, char * argv[])
 
 void clearResources(int signum)
 {
-	//TODO Clears all resources in case of interruption
+	// free dynamically allocated data
+	free(processArray);
 	
-	// free	processArray
-	// clear shared memroy between generator and scheduler
-	// clear semaphore between generator and scheduler
+	// clear resources
+	shmctl(simSize_shmid, IPC_RMID, (struct shmid_ds *) 0);
+	shmctl(scheduler_shmid, IPC_RMID, (struct shmid_ds *) 0);
+	semctl(scheduler_sem, IPC_RMID, 0, (struct semid_ds *) 0);
 
 	// clear clk resources
 	destroyClk(true);
@@ -145,26 +154,5 @@ void clearResources(int signum)
 	exit(0);
 }
 
-int createProcess(char *file)
-{
-	int pid = fork();
-	if (pid == -1)
-	{
-		perror("Error in fork\n");
-		clearResources(SIGINT);
-	}
-	else if (pid == 0)
-	{
-		char *args[] = {file, NULL}; 
-		if (execvp(args[0], args) == -1)
-		{
-			printf("Error in executing %s\n", file);
-			exit(0);
-		}
-	}
-	else
-	{
-		return pid;
-	}
-}
+
 
