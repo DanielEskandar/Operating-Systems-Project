@@ -90,9 +90,9 @@ int main(int argc, char * argv[])
 		currentTime = getClk();
 	}
 	#ifdef PRINTING
-		printf("===================\n");
+		printf("====================\n");
 		printf("SIMULATION FINISHED\n");
-		printf("===================\n");
+		printf("====================\n");
 	#endif	
 	
 	// close log file
@@ -266,6 +266,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			// initialize PCB
 			(*p_scheduledPCB)->id = (*p_scheduledProcess)->id;
 			(*p_scheduledPCB)->state = RUNNING;
+			(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 			(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 			(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
 			(*p_scheduledPCB)->waitingTime = 0;
