@@ -59,6 +59,7 @@ int main(int argc, char * argv[])
 	// open scheduler.log
 	FILE *pFile;
 	pFile = fopen(LOG, "w");
+	fprintf(pFile, "# At time x process y state arr w total z remain y wait k\n");
 	
 	// scheduler main loop
 	int processesFinished = 0;
