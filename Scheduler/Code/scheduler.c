@@ -239,10 +239,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		}
 	}
 	else // no process running
-	{
-		#ifdef PRINTING
-			printf("No process is running\n");
-		#endif		
+	{		
 		if (p_readyQueue->head != -1) // if  ready queue is not empty
 		{
 			// schedule next process with highest priority
@@ -272,7 +269,12 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			
 			// write log
 			writeLog(pFile, currentTime, (*p_scheduledPCB), STARTED);
-			
+		}
+		else
+		{
+			#ifdef PRINTING
+				printf("No process is running\n");
+			#endif
 		}
 	}
 }
