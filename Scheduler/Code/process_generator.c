@@ -106,6 +106,11 @@ int main(int argc, char * argv[])
 	struct process *p_process = (struct process *) (p_readyQueue + 1);
 	while (1)
 	{
+		#ifdef PRINTING
+			printf("============\n");
+			printf("TIME STEP %d\n", currentTime);
+			printf("============\n");
+		#endif	
 		if (!p_schedulerInfo->generationFinished)
 		{
 			// send the information to the scheduler in its appropriate time
@@ -113,6 +118,9 @@ int main(int argc, char * argv[])
 			{			 
 				*p_process = processArray[processIndex]; // physical allocation
 				enqueue(p_readyQueue, p_processBufferStart, p_process, processIndex, p_schedulerInfo->schedulerType);
+				#ifdef PRINTING
+					printf("Process %d arrived\n", p_process->id);
+				#endif	
 				
 				if ((processIndex + 1) == N)
 				{

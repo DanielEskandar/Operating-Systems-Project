@@ -164,11 +164,6 @@ void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logT
 
 void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
 {
-	#ifdef PRINTING
-		printf("============\n");
-		printf("TIME STEP %d\n", currentTime);
-		printf("============\n");
-	#endif	
 	if ((*p_scheduledProcess) != NULL) // if a process is running
 	{
 		// update process and PCB data
@@ -203,7 +198,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 				// schedule next process with highest priority
 				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
 				#ifdef PRINTING
-					printf("Process %d is scheduled\n", (*p_scheduledProcess)->id);
+					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 				
 				// start process and store its pid in the process table
@@ -253,7 +248,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			// schedule next process with highest priority
 			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
-				printf("Process %d is scheduled\n", (*p_scheduledProcess)->id);
+				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 
 			// start process and store its pid in the process table
