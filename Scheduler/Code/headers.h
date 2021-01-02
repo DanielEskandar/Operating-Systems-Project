@@ -11,6 +11,9 @@
 #include <unistd.h>
 #include <signal.h>
 
+//flags
+#define PRINTING
+
 typedef short bool;
 #define true 1
 #define false 0

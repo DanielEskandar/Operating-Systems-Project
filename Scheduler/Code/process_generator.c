@@ -4,7 +4,6 @@
 // definitions
 #define CLK_PROCESS "./clk.out"
 #define SCHEDULER_PROCESS "./scheduler.out"
-#define DEBUGGING
 
 // forward declarations
 void clearResources(int signum);
@@ -13,7 +12,6 @@ void clearResources(int signum);
 int simSize_shmid;
 int scheduler_shmid;
 int scheduler_sem;
-int clk_pid;
 struct process *processArray;
 
 int main(int argc, char * argv[])
@@ -48,8 +46,8 @@ int main(int argc, char * argv[])
 	{
 		fscanf(pFile, "%d\t%d\t%d\t%d\n", &processArray[i].id, &processArray[i].arrivalTime, &processArray[i].runningTime, &processArray[i].priority);
 		processArray[i].remainingTime = processArray[i].runningTime;
-		processArray[i].next = NULL;
-		processArray[i].prev = NULL;
+		processArray[i].next = -1;
+		processArray[i].prev = -1;
 	}
 	fclose(pFile);
 	
@@ -62,13 +60,13 @@ int main(int argc, char * argv[])
 	scheduler_shmid = shmget(SCHEDULER_SHM_KEY, (sizeof(struct schedulerInfo) + sizeof(struct readyQueue) + (N * sizeof(struct process))), IPC_CREAT | 0644); 
 	struct schedulerInfo *p_schedulerInfo = (struct schedulerInfo *) shmat(scheduler_shmid, (void *) 0, 0);
 	struct readyQueue *p_readyQueue = (struct readyQueue *) (p_schedulerInfo + 1);
+	struct process *p_processBufferStart = (struct processs *) (p_readyQueue + 1);
 	
 	// initialize shared memory
 	p_schedulerInfo->generationFinished = false;
 	p_schedulerInfo->quantum = 0;
-	p_readyQueue->head = NULL;
-	p_readyQueue->tail = NULL;
-	p_readyQueue->size = 0;
+	p_readyQueue->head = -1;
+	p_readyQueue->tail = -1;
 	p_readyQueue->processArrival = false;
 	
 	// create sempahore between scheduler and generator
@@ -96,7 +94,7 @@ int main(int argc, char * argv[])
 
 	// initiate and create the scheduler and clock processes.
 	int scheduler_pid = createProcess(SCHEDULER_PROCESS);
-	clk_pid = createProcess(CLK_PROCESS);
+	int clk_pid = createProcess(CLK_PROCESS);
 
 	// initialize clock
 	initClk();
@@ -106,24 +104,24 @@ int main(int argc, char * argv[])
 	// generation main loop
 	int processIndex = 0;
 	struct process *p_process = (struct process *) (p_readyQueue + 1);
-	while (!p_schedulerInfo->generationFinished)
+	while (1)
 	{
-		// send the information to the scheduler in its appropriate time
-		while (processArray[processIndex].arrivalTime == currentTime)
-		{			 
-			*p_process = processArray[processIndex]; // physical allocation
-			enqueue(p_readyQueue, p_process, p_schedulerInfo->schedulerType);
-			#ifdef DEBUGGING
-				printf("process %d enqueued\n", p_process->id);
-			#endif
-			
-			if ((processIndex + 1) == N)
-			{
-				p_schedulerInfo->generationFinished = true;
-				break;
+		if (!p_schedulerInfo->generationFinished)
+		{
+			// send the information to the scheduler in its appropriate time
+			while (processArray[processIndex].arrivalTime == currentTime)
+			{			 
+				*p_process = processArray[processIndex]; // physical allocation
+				enqueue(p_readyQueue, p_processBufferStart, p_process, processIndex, p_schedulerInfo->schedulerType);
+				
+				if ((processIndex + 1) == N)
+				{
+					p_schedulerInfo->generationFinished = true;
+					break;
+				}
+				p_process += 1;
+				processIndex++;
 			}
-			p_process += 1;
-			processIndex++;
 		}
 					
 		// enable scheduler to operate on the ready queue
@@ -133,9 +131,6 @@ int main(int argc, char * argv[])
 		while (currentTime == getClk());
 		currentTime = getClk();
 	}
-	
-	// Wait until scheduler finishes
-	while (1);
 }
 
 void clearResources(int signum)
