@@ -166,7 +166,7 @@ void dequeue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 	{
 		p_readyQueue->tail = p_process->prev;
 		p_prevProcess = p_processBufferStart + p_process->prev;
-		p_nextProcess->next = -1;
+		p_prevProcess->next = -1;
 		return;
 	}
 	
