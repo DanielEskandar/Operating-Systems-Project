@@ -56,7 +56,6 @@ struct readyQueue
 {
 	int head;
 	int tail;
-	int size;
 	bool processArrival;
 };
 
