@@ -54,8 +54,8 @@ int main(int argc, char * argv[])
 	// create shared memory between scheduler and generator to hold the simulation size
 	simSize_shmid = shmget(SIM_SIZE_SHM_KEY, sizeof(int), IPC_CREAT | 0644);
 	int *p_simSize = shmat(simSize_shmid, (void *)0, 0);
-	*p_simSize = N; // Total number of process in simulation
-		
+	*p_simSize = N; // Total number of processes in simulation
+
 	// create shared memory between scheduler and generator
 	scheduler_shmid = shmget(SCHEDULER_SHM_KEY, (sizeof(struct schedulerInfo) + sizeof(struct readyQueue) + (N * sizeof(struct process))), IPC_CREAT | 0644); 
 	struct schedulerInfo *p_schedulerInfo = (struct schedulerInfo *) shmat(scheduler_shmid, (void *) 0, 0);

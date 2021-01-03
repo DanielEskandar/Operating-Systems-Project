@@ -1,5 +1,6 @@
 #include "headers.h"
 #include "scheduler_utilities.h"
+#include <math.h>
 
 // definitions
 #define PROCESS "./process.out"
@@ -13,6 +14,8 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 
 // global variables
 int PCB_sem;
+float *weightedTurnaroundTimeArr;
+int *waitingTimeArr;
 
 int main(int argc, char * argv[])
 {
@@ -55,8 +58,8 @@ int main(int argc, char * argv[])
 	}
 	
 	// performance arrays
-	float *weightedTurnaroundTimeArr = (float *) malloc(N * sizeof(float));
-	int *waitingTimeArr = (int *) malloc(N * sizeof(int));
+	weightedTurnaroundTimeArr = (float *) malloc(N * sizeof(float));
+	waitingTimeArr = (int *) malloc(N * sizeof(int));
 		
 	// open scheduler.log
 	FILE *pFile;
@@ -64,6 +67,7 @@ int main(int argc, char * argv[])
 	fprintf(pFile, "# At time x process y state arr w total z remain y wait k\n");
 	
 	// scheduler main loop
+	int wastedTime = 0;
 	int processesFinished = 0;
 	int processQuantum = 0;
 	struct process *p_scheduledProcess = NULL;
@@ -90,7 +94,11 @@ int main(int argc, char * argv[])
 		
 		// wait until clk changes
 		while (currentTime == getClk());
-		currentTime = getClk();
+		wastedTime += (getClk() - currentTime - 1);
+		if (processesFinished != N)
+		{
+			currentTime = getClk();
+		}		
 	}
 	#ifdef PRINTING
 		printf("====================\n");
@@ -101,6 +109,27 @@ int main(int argc, char * argv[])
 	// close log file
 	fclose(pFile);
 	
+	// performance log
+	pFile = fopen(PERFORMANCE, "w");
+	fprintf(pFile, "CPU utilization = %.2f%%\n", ((currentTime - wastedTime) / (float) currentTime) * 100); // CPU utilization
+	float avgWTA = 0;
+	float avgWT = 0;
+	for (int i = 0; i < N; i++)
+	{
+		avgWTA += weightedTurnaroundTimeArr[i];
+		avgWT += waitingTimeArr[i];
+	}
+	avgWTA /= N;
+	avgWT /= N;
+	fprintf(pFile, "Avg WTA = %.2f\n", avgWTA); // average weighted turnaround time
+	fprintf(pFile, "Avg Waiting = %.2f\n", avgWT); // average waiting time
+	float std = 0;
+	for (int i = 0; i < N; i++)
+	{
+		std += powf((weightedTurnaroundTimeArr[i] - avgWTA), 2);
+	}
+	fprintf(pFile, "Std WTA = %.2f\n", sqrtf(std / N));
+	fclose(pFile);
 
 	// upon termination release the clock resources
 	raise(SIGINT);
@@ -108,6 +137,10 @@ int main(int argc, char * argv[])
 
 void cleanup(int signum)
 {
+	// free dynamically allocated memory
+	free(weightedTurnaroundTimeArr);
+	free(waitingTimeArr);
+
 	// clear sempahore between scheduler and process
 	semctl(PCB_sem, IPC_RMID, 0, (struct semid_ds *) 0);
 
@@ -230,11 +263,11 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 				writeLog(pFile, currentTime, (*p_scheduledPCB), STARTED);			
 			}
 			else // process finished and ready queue is empty
-			{
+			{			
+				p_scheduledProcess == NULL;
 				#ifdef PRINTING
 					printf("No process is scheduled\n");
 				#endif
-				(*p_scheduledProcess) = NULL;
 			}
 		}
 		else
@@ -267,7 +300,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 			(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 			(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-			(*p_scheduledPCB)->waitingTime = 0;
+			(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 			(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 			
 			// enable process to read PCB
@@ -279,7 +312,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		else
 		{
 			#ifdef PRINTING
-				printf("No process is running\n");
+				printf("No process is scheduled\n");
 			#endif
 		}
 	}
@@ -343,7 +376,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 					(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 					(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 					(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-					(*p_scheduledPCB)->waitingTime = 0;
+					(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 					(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 					
 					// enable process to read PCB
@@ -358,6 +391,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 					int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 					(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
 					(*p_scheduledPCB)->state = RUNNING;
+					(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 					
 					#ifdef PRINTING
 						printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
@@ -365,6 +399,13 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 					// write log
 					writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
 				}
+			}
+			else // process finished and ready queue is empty
+			{
+				p_scheduledProcess == NULL;
+				#ifdef PRINTING
+					printf("No process is scheduled\n");
+				#endif
 			}
 		}
 		else if (p_readyQueue->processArrival)
@@ -400,7 +441,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 				(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 				(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 				(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-				(*p_scheduledPCB)->waitingTime = 0;
+				(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 				(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 				
 				// enable process to read PCB
@@ -443,7 +484,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 			(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 			(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-			(*p_scheduledPCB)->waitingTime = 0;
+			(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 			(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 			
 			// enable process to read PCB
@@ -455,17 +496,17 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 		else
 		{
 			#ifdef PRINTING
-				printf("No process is running\n");
+				printf("No process is scheduled\n");
 			#endif
 		}
 	}
 }
 
 void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile)
-{
+{	
 	// reset processArrival bool
 	p_readyQueue->processArrival = false;
-	
+
 	if ((*p_scheduledProcess) != NULL) // if a process is running
 	{
 		// update process and PCB data
@@ -475,7 +516,9 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		(*processQuantum)++;
 		
 		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
-		{		
+		{
+			
+		
 			#ifdef PRINTING
 				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
 			#endif			
@@ -539,7 +582,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 					(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 					(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 					(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-					(*p_scheduledPCB)->waitingTime = 0;
+					(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 					(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 					
 					// enable process to read PCB
@@ -554,6 +597,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 					int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 					(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
 					(*p_scheduledPCB)->state = RUNNING;
+					(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 					
 					#ifdef PRINTING
 						printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
@@ -561,6 +605,13 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 					// write log
 					writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
 				}
+			}
+			else // process finished and ready queue is empty
+			{
+				p_scheduledProcess == NULL;
+				#ifdef PRINTING
+					printf("No process is scheduled\n");
+				#endif
 			}
 		}
 		else if ((*processQuantum) == quantum)
@@ -608,7 +659,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 				(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 				(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 				(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-				(*p_scheduledPCB)->waitingTime = 0;
+				(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 				(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 				
 				// enable process to read PCB
@@ -623,6 +674,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 				int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 				(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
 				(*p_scheduledPCB)->state = RUNNING;
+				(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 				
 				#ifdef PRINTING
 					printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
@@ -664,7 +716,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
 			(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
 			(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
-			(*p_scheduledPCB)->waitingTime = 0;
+			(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 			(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
 			
 			// enable process to read PCB
@@ -676,7 +728,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		else
 		{
 			#ifdef PRINTING
-				printf("No process is running\n");
+				printf("No process is scheduled\n");
 			#endif
 		}
 	}
