@@ -79,6 +79,14 @@ int main(int argc, char * argv[])
 		exit(-1);
 	}
 	
+	#ifdef PRINTING
+		int simTime = processArray[0].arrivalTime;
+		for (int i = 0; i < N; i++)
+		{
+			simTime += processArray[i].runningTime;
+		}
+	#endif
+	
 	// ask the user for the chose algorithm
 	int type;
 	printf("Choose a scheduling algorithm (0:HPF 1:SRTN 2:RR): ");
@@ -107,9 +115,12 @@ int main(int argc, char * argv[])
 	while (1)
 	{
 		#ifdef PRINTING
-			printf("============\n");
-			printf("TIME STEP %d\n", currentTime);
-			printf("============\n");
+			if (currentTime <= simTime)
+			{
+				printf("============\n");
+				printf("TIME STEP %d\n", currentTime);
+				printf("============\n");
+			}
 		#endif	
 		if (!p_schedulerInfo->generationFinished)
 		{
@@ -118,6 +129,7 @@ int main(int argc, char * argv[])
 			{			 
 				*p_process = processArray[processIndex]; // physical allocation
 				enqueue(p_readyQueue, p_processBufferStart, p_process, processIndex, p_schedulerInfo->schedulerType);
+				p_readyQueue->processArrival = true;
 				#ifdef PRINTING
 					printf("Process %d arrived\n", p_process->id);
 				#endif	
