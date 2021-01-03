@@ -475,10 +475,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		(*processQuantum)++;
 		
 		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
-		{
-			// reset processArrival bool
-			p_readyQueue->processArrival = false;
-		
+		{		
 			#ifdef PRINTING
 				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
 			#endif			

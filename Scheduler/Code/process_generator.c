@@ -87,7 +87,7 @@ int main(int argc, char * argv[])
 		}
 	#endif
 	
-	// ask the user for the chose algorithm
+	// ask the user for the chosen algorithm
 	int type;
 	printf("Choose a scheduling algorithm (0:HPF 1:SRTN 2:RR): ");
 	scanf("%d", &type);
