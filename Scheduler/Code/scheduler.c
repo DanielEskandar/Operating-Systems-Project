@@ -9,6 +9,7 @@ void cleanup(int signum);
 void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logType);
 void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
 void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
+void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile);
 
 // global variables
 int PCB_sem;
@@ -64,6 +65,7 @@ int main(int argc, char * argv[])
 	
 	// scheduler main loop
 	int processesFinished = 0;
+	int processQuantum = 0;
 	struct process *p_scheduledProcess = NULL;
 	struct PCB *p_scheduledPCB = NULL;
 	int currentTime = getClk();
@@ -82,7 +84,7 @@ int main(int argc, char * argv[])
 				schedulerSRTN(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);
 				break;
 			case RR:
-				// schedulerRR();
+				schedulerRR(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, p_schedulerInfo->quantum, &processQuantum, pFile);
 				break;
 		}
 		
@@ -165,6 +167,9 @@ void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logT
 
 void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
 {
+	// reset processArrival bool
+	p_readyQueue->processArrival = false;
+	
 	if ((*p_scheduledProcess) != NULL) // if a process is running
 	{
 		// update process and PCB data
@@ -173,10 +178,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 		
 		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
-		{
-			// reset processArrival bool
-			p_readyQueue->processArrival = false;
-			
+		{			
 			#ifdef PRINTING
 				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
 			#endif			
@@ -245,10 +247,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 	else // no process running
 	{		
 		if (p_readyQueue->head != -1) // if  ready queue is not empty
-		{
-			// reset processArrival bool
-			p_readyQueue->processArrival = false;
-			
+		{			
 			// schedule next process with highest priority
 			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
@@ -426,6 +425,230 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			p_readyQueue->processArrival = false;
 		
 			// schedule next process with the lowest remaining time
+			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
+			#ifdef PRINTING
+				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+			#endif
+
+			// start process and store its pid in the process table
+			processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
+
+			// create PCB to be share with the process
+			int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
+			(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
+
+			// initialize PCB
+			(*p_scheduledPCB)->id = (*p_scheduledProcess)->id;
+			(*p_scheduledPCB)->state = RUNNING;
+			(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
+			(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
+			(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
+			(*p_scheduledPCB)->waitingTime = 0;
+			(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
+			
+			// enable process to read PCB
+			up(PCB_sem);
+			
+			// write log
+			writeLog(pFile, currentTime, (*p_scheduledPCB), STARTED);
+		}
+		else
+		{
+			#ifdef PRINTING
+				printf("No process is running\n");
+			#endif
+		}
+	}
+}
+
+void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile)
+{
+	// reset processArrival bool
+	p_readyQueue->processArrival = false;
+	
+	if ((*p_scheduledProcess) != NULL) // if a process is running
+	{
+		// update process and PCB data
+		(*p_scheduledProcess)->remainingTime--;
+		(*p_scheduledPCB)->remainingTime--;
+		(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
+		(*processQuantum)++;
+		
+		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
+		{
+			// reset processArrival bool
+			p_readyQueue->processArrival = false;
+		
+			#ifdef PRINTING
+				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
+			#endif			
+			// increment number of finished processes
+			(*processesFinished)++;
+			
+			// fill performance arrays
+			weightedTurnaroundTimeArr[(*p_scheduledPCB)->id - 1] = (currentTime - (*p_scheduledPCB)->arrivalTime) / (float) (*p_scheduledPCB)->executionTime;
+			waitingTimeArr[(*p_scheduledPCB)->id - 1] = (*p_scheduledPCB)->waitingTime;
+			
+			// write log
+			writeLog(pFile, currentTime, (*p_scheduledPCB), FINISHED);
+			
+			// delete PCB
+			int PCB_shmid = shmget(processTable[(*p_scheduledPCB)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
+			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
+			
+			// find next process if it exits
+			struct process *p_nextProcess = NULL;
+			if (!(p_readyQueue->head == p_readyQueue->tail)) // if there is a next process
+			{
+				if ((*p_scheduledProcess)->next == -1) // if scheduled process is tail
+				{
+					// next process is head
+					p_nextProcess = p_processBufferStart + p_readyQueue->head;
+				}
+				else
+				{
+					// next process is next of scheduled process
+					p_nextProcess = p_processBufferStart + (*p_scheduledProcess)->next;
+				}
+			}
+			
+			// dequeue process
+			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
+			
+			if (p_readyQueue->head != -1) // if  ready queue is not empty
+			{
+				// reset processQuantum
+				(*processQuantum) = 0;
+				
+				// schedule next process
+				(*p_scheduledProcess) = p_nextProcess;
+								
+				if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
+				{
+					#ifdef PRINTING
+						printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					#endif
+					
+					// start process and store its pid in the process table
+					processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
+
+					// create PCB to be share with the process
+					int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
+					(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
+
+					// initialize PCB
+					(*p_scheduledPCB)->id = (*p_scheduledProcess)->id;
+					(*p_scheduledPCB)->state = RUNNING;
+					(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
+					(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
+					(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
+					(*p_scheduledPCB)->waitingTime = 0;
+					(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
+					
+					// enable process to read PCB
+					up(PCB_sem);
+					
+					// write log
+					writeLog(pFile, currentTime, (*p_scheduledPCB), STARTED);
+				}
+				else
+				{
+					// select PCB
+					int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
+					(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
+					(*p_scheduledPCB)->state = RUNNING;
+					
+					#ifdef PRINTING
+						printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					#endif
+					// write log
+					writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
+				}
+			}
+		}
+		else if ((*processQuantum) == quantum)
+		{
+			// reset processQuantum
+			(*processQuantum) = 0;
+			
+			#ifdef PRINTING
+				printf("Process %d is preempted\n", (*p_scheduledProcess)->id);
+			#endif
+			// write log
+			writeLog(pFile, currentTime, (*p_scheduledPCB), STOPPED);
+			
+			// schedule next process in queue
+			if (!(p_readyQueue->head == p_readyQueue->tail)) // schedule next only when ready queue has multiple processes
+			{
+				if ((*p_scheduledProcess)->next == -1) // if scheduled process is tail
+				{
+					// schedule head
+					(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
+				}
+				else
+				{
+					// schedule next process
+					(*p_scheduledProcess) = p_processBufferStart + (*p_scheduledProcess)->next;
+				}
+			}
+							
+			if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
+			{
+				#ifdef PRINTING
+					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				#endif
+				
+				// start process and store its pid in the process table
+				processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
+
+				// create PCB to be share with the process
+				int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
+				(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
+
+				// initialize PCB
+				(*p_scheduledPCB)->id = (*p_scheduledProcess)->id;
+				(*p_scheduledPCB)->state = RUNNING;
+				(*p_scheduledPCB)->arrivalTime = (*p_scheduledProcess)->arrivalTime;
+				(*p_scheduledPCB)->executionTime = (*p_scheduledProcess)->runningTime;
+				(*p_scheduledPCB)->remainingTime = (*p_scheduledProcess)->remainingTime;
+				(*p_scheduledPCB)->waitingTime = 0;
+				(*p_scheduledPCB)->priority = (*p_scheduledProcess)->priority;
+				
+				// enable process to read PCB
+				up(PCB_sem);
+				
+				// write log
+				writeLog(pFile, currentTime, (*p_scheduledPCB), STARTED);
+			}
+			else
+			{
+				// select PCB
+				int PCB_shmid = shmget(processTable[(*p_scheduledProcess)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
+				(*p_scheduledPCB) = shmat(PCB_shmid, (void *)0, 0);
+				(*p_scheduledPCB)->state = RUNNING;
+				
+				#ifdef PRINTING
+					printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				#endif
+				// write log
+				writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
+			}
+		}
+		else
+		{
+			#ifdef PRINTING
+				printf("Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+			#endif
+		}
+	}
+	else
+	{
+		if (p_readyQueue->head != -1) // if  ready queue is not empty
+		{
+			// reset processQuantum
+			(*processQuantum) = 0;
+		
+			// schedule head
 			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
