@@ -66,6 +66,8 @@ void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 	{
 		p_readyQueue->head = processIndex;
 		p_readyQueue->tail = processIndex;
+		p_process->next = -1;
+		p_process->prev = -1;
 		return;
 	}
 	
@@ -141,6 +143,7 @@ void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 			p_currentProcess->next = processIndex;
 			p_process->prev = p_readyQueue->tail;
 			p_readyQueue->tail = processIndex;
+			p_process->next = -1;
 			return;
 	}
 }
