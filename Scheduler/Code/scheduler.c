@@ -8,9 +8,9 @@
 // forward declarations
 void cleanup(int signum);
 void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logType);
-void schedulerHPF(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
-void schedulerSRTN(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
-void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile);
+void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
+void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
+void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile);
 
 // global variables
 int PCB_sem;
@@ -81,14 +81,14 @@ int main(int argc, char * argv[])
 		switch (p_schedulerInfo->schedulerType)
 		{
 			case HPF:
-				schedulerHPF(p_schedulerInfo, p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);								
+				schedulerHPF(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);								
 				break;
 			
 			case SRTN:
-				schedulerSRTN(p_schedulerInfo, p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);
+				schedulerSRTN(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);
 				break;
 			case RR:
-				schedulerRR(p_schedulerInfo, p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, p_schedulerInfo->quantum, &processQuantum, pFile);
+				schedulerRR(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, p_schedulerInfo->quantum, &processQuantum, pFile);
 				break;
 		}
 		
@@ -198,7 +198,7 @@ void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logT
 	}
 }
 
-void schedulerHPF(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
+void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
 {
 	// reset processArrival bool
 	p_readyQueue->processArrival = false;
@@ -236,7 +236,6 @@ void schedulerHPF(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_re
 			{
 				// schedule next process with highest priority
 				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-				p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;
 				#ifdef PRINTING
 					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
@@ -283,8 +282,7 @@ void schedulerHPF(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_re
 		if (p_readyQueue->head != -1) // if  ready queue is not empty
 		{			
 			// schedule next process with highest priority
-			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;	
-			p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;	
+			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
@@ -320,7 +318,7 @@ void schedulerHPF(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_re
 	}
 }
 
-void schedulerSRTN(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
+void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
 {
 	if ((*p_scheduledProcess) != NULL) // if a process is running
 	{
@@ -358,7 +356,7 @@ void schedulerSRTN(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_r
 			{
 				// schedule next process with the lowest remaining time
 				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-				p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;		
+								
 				if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
 				{
 					#ifdef PRINTING
@@ -425,8 +423,7 @@ void schedulerSRTN(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_r
 				
 				// schedule next process with the lowest remaining time
 				(*p_scheduledPCB)->state = WAITING;
-				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-				p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;	
+				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 				#ifdef PRINTING
 					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
@@ -469,8 +466,7 @@ void schedulerSRTN(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_r
 			p_readyQueue->processArrival = false;
 		
 			// schedule next process with the lowest remaining time
-			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-			p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;	
+			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
@@ -506,7 +502,7 @@ void schedulerSRTN(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_r
 	}
 }
 
-void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile)
+void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile)
 {	
 	// reset processArrival bool
 	p_readyQueue->processArrival = false;
@@ -520,7 +516,9 @@ void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_rea
 		(*processQuantum)++;
 		
 		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
-		{		
+		{
+			
+		
 			#ifdef PRINTING
 				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
 			#endif			
@@ -538,6 +536,22 @@ void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_rea
 			int PCB_shmid = shmget(processTable[(*p_scheduledPCB)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
+			// find next process if it exits
+			struct process *p_nextProcess = NULL;
+			if (!(p_readyQueue->head == p_readyQueue->tail)) // if there is a next process
+			{
+				if ((*p_scheduledProcess)->next == -1) // if scheduled process is tail
+				{
+					// next process is head
+					p_nextProcess = p_processBufferStart + p_readyQueue->head;
+				}
+				else
+				{
+					// next process is next of scheduled process
+					p_nextProcess = p_processBufferStart + (*p_scheduledProcess)->next;
+				}
+			}
+			
 			// dequeue process
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
 			
@@ -546,28 +560,8 @@ void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_rea
 				// reset processQuantum
 				(*processQuantum) = 0;
 				
-				// schedule next process in queue
-				if (!(p_readyQueue->head == p_readyQueue->tail)) // schedule next only when ready queue has multiple processes
-				{
-					if ((*p_scheduledProcess)->next == -1) // if scheduled process is tail
-					{
-						// schedule head
-						(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-						p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;
-					}
-					else
-					{
-						// schedule next process
-						(*p_scheduledProcess) = p_processBufferStart + (*p_scheduledProcess)->next;
-						p_schedulerInfo->scheduledProcessIndex = (*p_scheduledProcess)->next;
-					}
-				}
-				else
-				{
-					// schedule head
-					(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-					p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;
-				}
+				// schedule next process
+				(*p_scheduledProcess) = p_nextProcess;
 								
 				if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
 				{
@@ -638,20 +632,12 @@ void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_rea
 				{
 					// schedule head
 					(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-					p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;
 				}
 				else
 				{
 					// schedule next process
 					(*p_scheduledProcess) = p_processBufferStart + (*p_scheduledProcess)->next;
-					p_schedulerInfo->scheduledProcessIndex = (*p_scheduledProcess)->next;
 				}
-			}
-			else
-			{
-				// schedule head
-				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-				p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;
 			}
 							
 			if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
@@ -712,8 +698,7 @@ void schedulerRR(struct schedulerInfo *p_schedulerInfo, struct readyQueue *p_rea
 			(*processQuantum) = 0;
 		
 			// schedule head
-			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
-			p_schedulerInfo->scheduledProcessIndex = p_readyQueue->head;	
+			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
