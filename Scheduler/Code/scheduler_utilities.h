@@ -136,10 +136,7 @@ void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 			return;
 			
 		case RR:
-			while (p_currentProcess->next != -1)
-			{
-				p_currentProcess = p_processBufferStart + p_currentProcess->next;
-			}
+			p_currentProcess = p_processBufferStart + p_readyQueue->tail;
 			p_currentProcess->next = processIndex;
 			p_process->prev = p_readyQueue->tail;
 			p_readyQueue->tail = processIndex;
