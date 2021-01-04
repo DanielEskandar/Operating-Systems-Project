@@ -65,6 +65,7 @@ int main(int argc, char * argv[])
 	// initialize shared memory
 	p_schedulerInfo->generationFinished = false;
 	p_schedulerInfo->quantum = 0;
+	p_schedulerInfo->scheduledProcessIndex = -1;
 	p_readyQueue->head = -1;
 	p_readyQueue->tail = -1;
 	p_readyQueue->processArrival = false;
@@ -128,8 +129,9 @@ int main(int argc, char * argv[])
 			while (processArray[processIndex].arrivalTime == currentTime)
 			{			 
 				*p_process = processArray[processIndex]; // physical allocation
-				enqueue(p_readyQueue, p_processBufferStart, p_process, processIndex, p_schedulerInfo->schedulerType);
+				enqueue(p_readyQueue, p_processBufferStart, p_process, processIndex, p_schedulerInfo->scheduledProcessIndex, p_schedulerInfo->schedulerType);
 				p_readyQueue->processArrival = true;
+					
 				#ifdef PRINTING
 					printf("Process %d arrived\n", p_process->id);
 				#endif	
@@ -141,7 +143,7 @@ int main(int argc, char * argv[])
 				}
 				p_process += 1;
 				processIndex++;
-			}
+			}		
 		}
 					
 		// enable scheduler to operate on the ready queue

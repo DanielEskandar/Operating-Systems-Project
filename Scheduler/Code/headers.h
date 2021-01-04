@@ -14,6 +14,7 @@
 
 //flags
 #define PRINTING
+#define DEBUGGING
 
 typedef short bool;
 #define true 1

@@ -50,6 +50,7 @@ struct schedulerInfo
 	int schedulerType;
 	int quantum;
 	bool generationFinished;
+	int scheduledProcessIndex;
 };
 
 struct readyQueue
@@ -59,7 +60,7 @@ struct readyQueue
 	bool processArrival;
 };
 
-void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process *p_process, int processIndex, int schedulerType)
+void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process *p_process, int processIndex, int scheduledProcessIndex, int schedulerType)
 {	
 	// corner case: empty queue
 	if (p_readyQueue->head == -1)
@@ -69,8 +70,11 @@ void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 		return;
 	}
 	
-	struct process *p_currentProcess = p_processBufferStart + p_readyQueue->head;
 	struct process *p_nextProcess = NULL;
+	struct process *p_prevProcess = NULL;
+	struct process *p_scheduledProcess = NULL;
+	
+	struct process *p_currentProcess = p_processBufferStart + p_readyQueue->head;
 	switch (schedulerType)
 	{
 		case HPF:
@@ -134,13 +138,76 @@ void enqueue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 			return;
 			
 		case RR:
-			while (p_currentProcess->next != -1)
+			p_scheduledProcess = p_processBufferStart + scheduledProcessIndex;
+			
+			// corner case: scheduled process is head
+			if (p_scheduledProcess->prev == -1)
 			{
-				p_currentProcess = p_processBufferStart + p_currentProcess->next;
+				printf("scheduled process: %d prev: %d\n", p_scheduledProcess->id, p_scheduledProcess->prev);
+				
+				#ifdef DEBUGGING
+					struct process *p_current = p_processBufferStart + p_readyQueue->head;
+					printf("head: %d ", p_current->id);
+					while (p_current->next != -1)
+					{
+						p_current = p_processBufferStart + p_current->next;
+						printf("%d ", p_current->id);
+					}
+					printf(":tail\n");
+				#endif
+				
+				p_scheduledProcess->prev = processIndex;
+				p_process->next = p_readyQueue->head;
+				p_readyQueue->head = processIndex;
+				
+				printf("scheduled process: %d prev: %d\n", p_scheduledProcess->id, p_scheduledProcess->prev);
+				
+				#ifdef DEBUGGING
+					p_current = p_processBufferStart + p_readyQueue->head;
+					printf("head: %d ", p_current->id);
+					while (p_current->next != -1)
+					{
+						p_current = p_processBufferStart + p_current->next;
+						printf("%d ", p_current->id);
+					}
+					printf(":tail\n");
+				#endif
+				
+				return;
 			}
-			p_currentProcess->next = processIndex;
-			p_process->prev = p_readyQueue->tail;
-			p_readyQueue->tail = processIndex;
+			
+			printf("scheduled process: %d prev: %d\n", p_scheduledProcess->id, p_scheduledProcess->prev);
+			
+			#ifdef DEBUGGING
+				struct process *p_current = p_processBufferStart + p_readyQueue->head;
+				printf("head: %d ", p_current->id);
+				while (p_current->next != -1)
+				{
+					p_current = p_processBufferStart + p_current->next;
+					printf("%d ", p_current->id);
+				}
+				printf(":tail\n");
+			#endif
+			
+			p_prevProcess = p_processBufferStart + p_scheduledProcess->prev;
+			p_process->next = p_prevProcess->next;
+			p_process->prev = p_scheduledProcess->prev;
+			p_prevProcess->next = processIndex;
+			p_scheduledProcess->prev = processIndex;
+			
+			printf("scheduled process: %d prev: %d\n", p_scheduledProcess->id, p_scheduledProcess->prev);
+			
+			#ifdef DEBUGGING
+				p_current = p_processBufferStart + p_readyQueue->head;
+				printf("head: %d ", p_current->id);
+				while (p_current->next != -1)
+				{
+					p_current = p_processBufferStart + p_current->next;
+					printf("%d ", p_current->id);
+				}
+				printf(":tail\n");
+			#endif
+			
 			return;
 	}
 }
@@ -150,6 +217,15 @@ void dequeue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 {
 	struct process *p_nextProcess = NULL;
 	struct process *p_prevProcess = NULL;
+	struct process *p_scheduledProcess = NULL;
+	
+	// corner case: queue size is 1
+	if ((p_process->prev == -1) && (p_process->next == -1))
+	{
+		p_readyQueue->head = -1;
+		p_readyQueue->tail = -1;
+		return;
+	}
 
 	// corner case: dequeue head
 	if (p_process->prev == -1)
