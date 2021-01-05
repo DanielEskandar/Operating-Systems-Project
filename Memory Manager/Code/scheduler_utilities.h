@@ -31,6 +31,10 @@
 // smallest allocation unit
 #define SMALLEST_ALLOCATION_UNIT 8
 
+// memory unit states
+#define EMPTY -1
+#define NOT_EMPTY 0
+
 struct memUnit
 {
 	int id;
@@ -203,7 +207,7 @@ bool allocate(struct memUnit *memory, struct process *p_process)
 	// base condition
 	if ((memory->left == NULL) && (memory->right == NULL))
 	{
-		if (memory->id != -1)	// memory unit is not free
+		if (memory->id != EMPTY)	// memory unit is not free
 		{
 			return false;
 		}
@@ -259,7 +263,7 @@ void splitAllocate(struct process *p_process)
 	{
 		// create left memory unit
 		p_memUnit->left = (struct memUnit *) malloc(sizeof(struct memUnit));
-		p_memUnit->left->id = -1;
+		p_memUnit->left->id = EMPTY;
 		p_memUnit->left->size = 0.5 * p_memUnit->size;
 		p_memUnit->left->start = p_memUnit->start;
 		p_memUnit->left->parent = p_memUnit;
@@ -268,12 +272,15 @@ void splitAllocate(struct process *p_process)
 		
 		// create right memory unit
 		p_memUnit->right = (struct memUnit *) malloc(sizeof(struct memUnit));
-		p_memUnit->right->id = -1;
+		p_memUnit->right->id = EMPTY;
 		p_memUnit->right->size = 0.5 * p_memUnit->size;
 		p_memUnit->right->start = p_memUnit->start + p_memUnit->right->size;
 		p_memUnit->right->parent = p_memUnit;
 		p_memUnit->right->left = NULL;
 		p_memUnit->right->right = NULL;
+		
+		// mark the memory unit as not empty
+		p_memUnit->id = NOT_EMPTY;
 		
 		// go to left memUnit
 		p_memUnit = p_memUnit->left;
@@ -290,7 +297,7 @@ void deallocate(struct process *p_process)
 	struct memUnit *p_memUnit = p_process->allocatedMemUnit;
 	
 	// deallocate memory unit
-	p_memUnit->id = -1;
+	p_memUnit->id = EMPTY;
 	p_process->allocatedMemUnit = NULL;
 	
 	while (p_memUnit->parent != NULL)
@@ -300,6 +307,9 @@ void deallocate(struct process *p_process)
 		
 		if ((p_memUnit->left->id == -1) && (p_memUnit->right->id == -1)) // merge
 		{
+			// mark parent as empty
+			p_memUnit->id = EMPTY;
+		
 			// delete left child
 			free(p_memUnit->left);
 			p_memUnit->left = NULL;
