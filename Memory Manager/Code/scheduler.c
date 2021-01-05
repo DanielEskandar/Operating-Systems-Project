@@ -118,9 +118,11 @@ int main(int argc, char * argv[])
 		}		
 	}
 	#ifdef PRINTING
-		printf("====================\n");
+		printf("\033[0;32m"); // set color to green
+		printf("===================\n");
 		printf("SIMULATION FINISHED\n");
-		printf("====================\n");
+		printf("===================\n");
+		printf("\033[0;37m"); // set color to white
 	#endif	
 	
 	// close log files
@@ -249,11 +251,14 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
 			// write mem log and deallocate process
-			writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
-			#ifdef PRINTING
-				printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
-			#endif
-			deallocate((*p_scheduledProcess));
+			if ((*p_scheduledProcess)->allocatedMemUnit != NULL)
+			{
+				writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
+				#ifdef PRINTING
+					printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
+				#endif
+				deallocate((*p_scheduledProcess));
+			}
 			
 			// dequeue process
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
@@ -382,11 +387,14 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
 			// write mem log and deallocate process
-			writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
-			#ifdef PRINTING
-				printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
-			#endif
-			deallocate((*p_scheduledProcess));
+			if ((*p_scheduledProcess)->allocatedMemUnit != NULL)
+			{
+				writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
+				#ifdef PRINTING
+					printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
+				#endif
+				deallocate((*p_scheduledProcess));
+			}
 			
 			// dequeue process
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
@@ -591,14 +599,14 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
 			// write mem log and deallocate process
-			writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
-			#ifdef PRINTING
-				printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
-			#endif
-			deallocate((*p_scheduledProcess));
-			
-			// dequeue process
-			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
+			if ((*p_scheduledProcess)->allocatedMemUnit != NULL)
+			{
+				writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
+				#ifdef PRINTING
+					printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
+				#endif
+				deallocate((*p_scheduledProcess));
+			}
 			
 			if (p_readyQueue->head != -1) // if  ready queue is not empty
 			{
@@ -811,7 +819,10 @@ void manageMemory(FILE *pFile, int currentTime, struct memUnit *memory, struct p
 	else
 	{
 		if (p_process->allocatedMemUnit == NULL)
-		{			
+		{
+			#ifdef PRINTING
+				printf("Could do not allocate memory for process %d\n", p_process->id);
+			#endif
 			return;
 		}
 		else

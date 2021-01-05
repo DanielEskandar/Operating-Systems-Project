@@ -540,9 +540,6 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			int PCB_shmid = shmget(processTable[(*p_scheduledPCB)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
-			// dequeue process
-			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
-			
 			if (p_readyQueue->head != -1) // if  ready queue is not empty
 			{
 				// reset processQuantum
