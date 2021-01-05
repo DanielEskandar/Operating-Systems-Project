@@ -44,13 +44,22 @@ int main(int argc, char * argv[])
 	fscanf(pFile, "%*[^\n]\n");
 	for (int i = 0; i < N; i++)
 	{
-		fscanf(pFile, "%d\t%d\t%d\t%d\n", &processArray[i].id, &processArray[i].arrivalTime, &processArray[i].runningTime, &processArray[i].priority);
+		fscanf(pFile, "%d\t%d\t%d\t%d\t%d\n", &processArray[i].id, &processArray[i].arrivalTime, &processArray[i].runningTime, &processArray[i].priority, &processArray[i].memSize);
 		processArray[i].remainingTime = processArray[i].runningTime;
+		if (processArray[i].memSize > SMALLEST_ALLOCATION_UNIT)
+		{
+			processArray[i].allocationSize = pow(2, ceil(log2f((float) processArray[i].memSize)));
+		}
+		else
+		{
+			processArray[i].allocationSize = SMALLEST_ALLOCATION_UNIT;
+		}
+		processArray[i].allocatedMemUnit = NULL;
 		processArray[i].next = -1;
 		processArray[i].prev = -1;
 	}
 	fclose(pFile);
-	
+
 	// create shared memory between scheduler and generator to hold the simulation size
 	simSize_shmid = shmget(SIM_SIZE_SHM_KEY, sizeof(int), IPC_CREAT | 0644);
 	int *p_simSize = shmat(simSize_shmid, (void *)0, 0);

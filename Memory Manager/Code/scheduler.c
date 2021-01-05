@@ -8,14 +8,17 @@
 // forward declarations
 void cleanup(int signum);
 void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logType);
-void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
-void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile);
-void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile);
+void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile, struct memUnit *memory, FILE *pMemFile);
+void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile, struct memUnit *memory, FILE *pMemFile);
+void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile, struct memUnit *memory, FILE *pMemFile);
+void writeMemLog(FILE *pFile, int currentTime, struct process* p_process, int logType);
+void manageMemory(FILE *pFile, int currentTime, struct memUnit *memory, struct process* p_process);
 
 // global variables
 int PCB_sem;
 float *weightedTurnaroundTimeArr;
 int *waitingTimeArr;
+struct memUnit *memory;
 
 int main(int argc, char * argv[])
 {
@@ -60,11 +63,25 @@ int main(int argc, char * argv[])
 	// performance arrays
 	weightedTurnaroundTimeArr = (float *) malloc(N * sizeof(float));
 	waitingTimeArr = (int *) malloc(N * sizeof(int));
+	
+	// memory
+	memory = (struct memUnit *) malloc(sizeof(struct memUnit));
+	memory->id = -1;
+	memory->size = 1024;
+	memory->start = 0;
+	memory->parent = NULL;
+	memory->left = NULL;
+	memory->right = NULL;
 		
 	// open scheduler.log
 	FILE *pFile;
 	pFile = fopen(LOG, "w");
 	fprintf(pFile, "# At time x process y state arr w total z remain y wait k\n");
+	
+	// open memory.log
+	FILE *pMemFile;
+	pMemFile = fopen(MEMORY, "w");
+	fprintf(pMemFile, "# At time x allocated y bytes for process z from i to j\n");
 	
 	// scheduler main loop
 	int wastedTime = 0;
@@ -81,14 +98,14 @@ int main(int argc, char * argv[])
 		switch (p_schedulerInfo->schedulerType)
 		{
 			case HPF:
-				schedulerHPF(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);								
+				schedulerHPF(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile, memory, pMemFile);								
 				break;
 			
 			case SRTN:
-				schedulerSRTN(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile);
+				schedulerSRTN(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, pFile, memory, pMemFile);
 				break;
 			case RR:
-				schedulerRR(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, p_schedulerInfo->quantum, &processQuantum, pFile);
+				schedulerRR(p_readyQueue, p_processBufferStart, &p_scheduledProcess, &p_scheduledPCB, currentTime, processTable, PCB_sem, weightedTurnaroundTimeArr, waitingTimeArr, &processesFinished, p_schedulerInfo->quantum, &processQuantum, pFile, memory, pMemFile);
 				break;
 		}
 		
@@ -106,8 +123,9 @@ int main(int argc, char * argv[])
 		printf("====================\n");
 	#endif	
 	
-	// close log file
+	// close log files
 	fclose(pFile);
+	fclose(pMemFile);
 	
 	// performance log
 	pFile = fopen(PERFORMANCE, "w");
@@ -140,6 +158,7 @@ void cleanup(int signum)
 	// free dynamically allocated memory
 	free(weightedTurnaroundTimeArr);
 	free(waitingTimeArr);
+	free(memory);
 
 	// clear sempahore between scheduler and process
 	semctl(PCB_sem, IPC_RMID, 0, (struct semid_ds *) 0);
@@ -198,7 +217,7 @@ void writeLog(FILE *pFile, int currentTime, struct PCB *p_scheduledPCB, int logT
 	}
 }
 
-void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
+void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile, struct memUnit *memory, FILE *pMemFile)
 {
 	// reset processArrival bool
 	p_readyQueue->processArrival = false;
@@ -229,6 +248,13 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			int PCB_shmid = shmget(processTable[(*p_scheduledPCB)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
+			// write mem log and deallocate process
+			writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
+			#ifdef PRINTING
+				printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
+			#endif
+			deallocate((*p_scheduledProcess));
+			
 			// dequeue process
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
 			
@@ -239,6 +265,9 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 				#ifdef PRINTING
 					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
+				
+				// allocate memory for scheduled process and write log
+				manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 				
 				// start process and store its pid in the process table
 				processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -282,10 +311,13 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		if (p_readyQueue->head != -1) // if  ready queue is not empty
 		{			
 			// schedule next process with highest priority
-			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
+			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;	
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
+			
+			// allocate memory for scheduled process and write log
+			manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 
 			// start process and store its pid in the process table
 			processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -318,7 +350,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 	}
 }
 
-void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile)
+void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, FILE *pFile, struct memUnit *memory, FILE *pMemFile)
 {
 	if ((*p_scheduledProcess) != NULL) // if a process is running
 	{
@@ -349,6 +381,13 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			int PCB_shmid = shmget(processTable[(*p_scheduledPCB)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
+			// write mem log and deallocate process
+			writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
+			#ifdef PRINTING
+				printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
+			#endif
+			deallocate((*p_scheduledProcess));
+			
 			// dequeue process
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
 			
@@ -362,6 +401,9 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 					#ifdef PRINTING
 						printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 					#endif
+					
+					// allocate memory for scheduled process and write log
+					manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 					
 					// start process and store its pid in the process table
 					processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -423,10 +465,14 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 				
 				// schedule next process with the lowest remaining time
 				(*p_scheduledPCB)->state = WAITING;
-				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
+				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
+					
 				#ifdef PRINTING
 					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
+				
+				// allocate memory for scheduled process and write log
+				manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 
 				// start process and store its pid in the process table
 				processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -472,10 +518,14 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			p_readyQueue->processArrival = false;
 		
 			// schedule next process with the lowest remaining time
-			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
+			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
+				
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
+			
+			// allocate memory for scheduled process and write log
+			manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 
 			// start process and store its pid in the process table
 			processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -508,7 +558,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 	}
 }
 
-void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile)
+void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBufferStart, struct process **p_scheduledProcess, struct PCB **p_scheduledPCB, int currentTime, int *processTable, int PCB_sem, float *weightedTurnaroundTimeArr, int *waitingTimeArr, int *processesFinished, int quantum, int *processQuantum, FILE *pFile, struct memUnit *memory, FILE *pMemFile)
 {	
 	// reset processArrival bool
 	p_readyQueue->processArrival = false;
@@ -540,6 +590,13 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			int PCB_shmid = shmget(processTable[(*p_scheduledPCB)->id - 1], sizeof(struct PCB), IPC_CREAT | 0644);
 			shmctl(PCB_shmid, IPC_RMID, (struct shmid_ds *) 0);
 			
+			// write mem log and deallocate process
+			writeMemLog(pMemFile, currentTime, (*p_scheduledProcess), FREED);
+			#ifdef PRINTING
+				printf("Process %d freed from %d to %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->allocatedMemUnit->start, (*p_scheduledProcess)->allocatedMemUnit->start + (*p_scheduledProcess)->allocationSize - 1);
+			#endif
+			deallocate((*p_scheduledProcess));
+			
 			// dequeue process
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
 			
@@ -557,6 +614,9 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 					#ifdef PRINTING
 						printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 					#endif
+					
+					// allocate memory for scheduled process and write log
+					manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 					
 					// start process and store its pid in the process table
 					processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -627,6 +687,9 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 				
+				// allocate memory for scheduled process and write log
+				manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
+				
 				// start process and store its pid in the process table
 				processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
 
@@ -684,6 +747,9 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			#ifdef PRINTING
 				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
+			
+			// allocate memory for scheduled process and write log
+			manageMemory(pMemFile, currentTime, memory, (*p_scheduledProcess));
 
 			// start process and store its pid in the process table
 			processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
@@ -715,3 +781,47 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		}
 	}
 }
+
+void writeMemLog(FILE *pFile, int currentTime, struct process* p_process, int logType)
+{
+	switch (logType)
+	{
+		case ALLOCATED:
+			fprintf(pFile, "At time %d allocated %d bytes for process %d from %d to %d\n", currentTime, p_process->memSize, p_process->id, p_process->allocatedMemUnit->start, p_process->allocatedMemUnit->start + p_process->allocationSize - 1);
+			break;
+			
+		case FREED:
+			fprintf(pFile, "At time %d freed %d bytes from process %d from %d to %d\n", currentTime, p_process->memSize, p_process->id, p_process->allocatedMemUnit->start, p_process->allocatedMemUnit->start + p_process->allocationSize - 1);
+			break;
+	}
+}
+
+void manageMemory(FILE *pFile, int currentTime, struct memUnit *memory, struct process* p_process)
+{
+	bool processAllocated = allocate(memory, p_process);
+		
+	if (processAllocated)
+	{
+		writeMemLog(pFile, currentTime, p_process, ALLOCATED);
+		#ifdef PRINTING
+			printf("Process %d allocated from %d to %d\n", p_process->id, p_process->allocatedMemUnit->start, p_process->allocatedMemUnit->start + p_process->allocationSize - 1);
+		#endif
+		return;
+	}
+	else
+	{
+		if (p_process->allocatedMemUnit == NULL)
+		{			
+			return;
+		}
+		else
+		{
+			splitAllocate(p_process);
+			writeMemLog(pFile, currentTime, p_process, ALLOCATED);
+			#ifdef PRINTING
+				printf("Process %d allocated from %d to %d\n", p_process->id, p_process->allocatedMemUnit->start, p_process->allocatedMemUnit->start + p_process->allocationSize - 1);
+			#endif
+		}
+	}
+}
+
