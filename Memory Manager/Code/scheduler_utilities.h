@@ -16,12 +16,30 @@
 // output files
 #define LOG "scheduler.log"
 #define PERFORMANCE "scheduler.perf"
+#define MEMORY "memory.log"
 
 // keys
 #define SIM_SIZE_SHM_KEY 400
 #define SCHEDULER_SHM_KEY 500
 #define SCHEDULER_SEM_KEY 600
 #define PCB_SEM_KEY 700
+
+// memory log states
+#define ALLOCATED 0
+#define FREED 1
+
+// smallest allocation unit
+#define SMALLEST_ALLOCATION_UNIT 8
+
+struct memUnit
+{
+	int id;
+	int size;
+	int start;
+	struct memUnit *parent;
+	struct memUnit *left;
+	struct memUnit *right;
+};
 
 struct PCB
 {
@@ -39,10 +57,13 @@ struct process
 	int id;	
 	int arrivalTime;
 	int runningTime;
-	int priority;
+	int priority;	
 	int remainingTime;
+	int memSize;
+	int allocationSize;
+	struct memUnit *allocatedMemUnit;
 	int next;
-	int prev;
+	int prev;	
 };
 
 struct schedulerInfo
@@ -175,5 +196,122 @@ void dequeue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 	p_nextProcess->prev = p_process->prev;
 	p_prevProcess->next = p_process->next;
 	return;
+}
+
+bool allocate(struct memUnit *memory, struct process *p_process)
+{
+	// base condition
+	if ((memory->left == NULL) && (memory->right == NULL))
+	{
+		if (memory->id != -1)	// memory unit is not free
+		{
+			return false;
+		}
+		
+		if (memory->size == p_process->allocationSize) // allocation possible
+		{
+			memory->id = p_process->id;
+			p_process->allocatedMemUnit = memory;
+			return true;
+		}
+		
+		if (memory->size < p_process->allocationSize) // allocation not possible
+		{
+			return false;
+		}
+		
+		if (memory->size > p_process->allocationSize) // allocation that needs splitting
+		{
+			// check size to get smallest memory unit greater than allocation size
+		
+			if (p_process->allocatedMemUnit == NULL)
+			{
+				p_process->allocatedMemUnit = memory;
+			}
+			else if (memory->size < p_process->allocatedMemUnit->size)
+			{
+				p_process->allocatedMemUnit = memory;
+			}
+			
+			return false;
+		}
+		
+	}
+	
+	//search in memory (left first then right)
+	
+	if (allocate(memory->left, p_process))
+	{
+		return true;
+	}
+	else 
+	{
+		return allocate(memory->right, p_process);
+	}
+}
+
+void splitAllocate(struct process *p_process)
+{
+	// get memory unit
+	struct memUnit *p_memUnit = p_process->allocatedMemUnit;
+	
+	while (p_memUnit->size != p_process->allocationSize)
+	{
+		// create left memory unit
+		p_memUnit->left = (struct memUnit *) malloc(sizeof(struct memUnit));
+		p_memUnit->left->id = -1;
+		p_memUnit->left->size = 0.5 * p_memUnit->size;
+		p_memUnit->left->start = p_memUnit->start;
+		p_memUnit->left->parent = p_memUnit;
+		p_memUnit->left->left = NULL;
+		p_memUnit->left->right = NULL;
+		
+		// create right memory unit
+		p_memUnit->right = (struct memUnit *) malloc(sizeof(struct memUnit));
+		p_memUnit->right->id = -1;
+		p_memUnit->right->size = 0.5 * p_memUnit->size;
+		p_memUnit->right->start = p_memUnit->start + p_memUnit->right->size;
+		p_memUnit->right->parent = p_memUnit;
+		p_memUnit->right->left = NULL;
+		p_memUnit->right->right = NULL;
+		
+		// go to left memUnit
+		p_memUnit = p_memUnit->left;
+	}
+	
+	// allocate process
+	p_memUnit->id = p_process->id;
+	p_process->allocatedMemUnit = p_memUnit;
+}
+
+void deallocate(struct process *p_process)
+{
+	// get memory unit
+	struct memUnit *p_memUnit = p_process->allocatedMemUnit;
+	
+	// deallocate memory unit
+	p_memUnit->id = -1;
+	p_process->allocatedMemUnit = NULL;
+	
+	while (p_memUnit->parent != NULL)
+	{
+		// go to parent
+		p_memUnit = p_memUnit->parent;
+		
+		if ((p_memUnit->left->id == -1) && (p_memUnit->right->id == -1)) // merge
+		{
+			// delete left child
+			free(p_memUnit->left);
+			p_memUnit->left = NULL;
+			
+			// delete right child
+			free(p_memUnit->right);
+			p_memUnit->right = NULL;
+		}
+		else
+		{
+			return;
+		}
+	}
 }
 
