@@ -140,7 +140,7 @@ int main(int argc, char * argv[])
 				enqueue(p_readyQueue, p_processBufferStart, p_process, processIndex, p_schedulerInfo->schedulerType);
 				p_readyQueue->processArrival = true;
 				#ifdef PRINTING
-					printf("Process %d arrived\n", p_process->id);
+					printf("Process Generator: Process %d arrived\n", p_process->id);
 				#endif	
 				
 				if ((processIndex + 1) == N)
