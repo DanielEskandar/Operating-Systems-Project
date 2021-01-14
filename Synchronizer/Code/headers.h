@@ -23,6 +23,14 @@
 #define MUTEX_KEY 400
 #define FULL_KEY 500
 #define EMPTY_KEY 600
+#define PROCESS_COUNT_KEY 700
+
+// struct to count running processes
+struct processCount
+{
+	int producerCount;
+	int consumerCount;
+};
 
 // arg for semctl system calls
 union Semun

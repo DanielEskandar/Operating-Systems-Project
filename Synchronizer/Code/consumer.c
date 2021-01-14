@@ -1,11 +1,17 @@
 #include "headers.h"
 
 // global variables
+// IDs
+int processCountID;
 int bufferID;
 int remID;
 int mutex;
 int full;
 int empty;
+// addresses
+struct processCount *p_processCount;
+int *p_buffer;
+int *p_rem;
 
 // forward declarations
 void consumeItem(int *p_buffer, int *p_add);
@@ -15,13 +21,27 @@ int main()
 {
 	// bind handler
 	signal(SIGINT, cleanup);
+	
+	// attach to process count struct	
+	processCountID = shmget(PROCESS_COUNT_KEY, sizeof(struct processCount), IPC_CREAT | IPC_EXCL | 0644);
+	if (processCountID == -1)
+	{
+		processCountID = shmget(PROCESS_COUNT_KEY, sizeof(struct processCount), IPC_CREAT | 0644);
+		p_processCount = shmat(processCountID, (void *) 0, 0);
+		p_processCount->consumerCount++;		
+	}
+	else
+	{
+		p_processCount = shmat(processCountID, (void *) 0, 0);
+		p_processCount->producerCount = 0;
+		p_processCount->consumerCount = 1;
+	}
 
 	// attach to buffer shared memory
 	bufferID = shmget(BUFFER_KEY, (BUFFER_SIZE * sizeof(int)), IPC_CREAT | 0644);
-	int *p_buffer = shmat(bufferID, (void *) 0, 0);
+	p_buffer = shmat(bufferID, (void *) 0, 0);
 	
 	// attch to add shared memory
-	int *p_rem;
 	remID = shmget(REM_KEY, sizeof(int), IPC_CREAT | IPC_EXCL | 0644);
 	if (remID == -1)
 	{
@@ -80,12 +100,27 @@ void consumeItem(int *p_buffer, int *p_rem)
 
 void cleanup(int signum)
 {
-	int addID = shmget(ADD_KEY, sizeof(int), IPC_CREAT | 0644);
-	shmctl(bufferID, IPC_RMID, (struct shmid_ds *) 0);
-	shmctl(addID, IPC_RMID, (struct shmid_ds *) 0);
-	shmctl(remID, IPC_RMID, (struct shmid_ds *) 0);
-	semctl(mutex, IPC_RMID, 0, (struct semid_ds *) 0);
-	semctl(empty, IPC_RMID, 0, (struct semid_ds *) 0);
-	semctl(full, IPC_RMID, 0, (struct semid_ds *) 0);
+	printf("Consumer quitting\n");
+
+	p_processCount->consumerCount--;
+	if ((p_processCount->producerCount == 0) && (p_processCount->consumerCount == 0))
+	{
+		int addID = shmget(ADD_KEY, sizeof(int), IPC_CREAT | 0644);
+		shmctl(processCountID, IPC_RMID, (struct shmid_ds *) 0);
+		shmctl(bufferID, IPC_RMID, (struct shmid_ds *) 0);
+		shmctl(addID, IPC_RMID, (struct shmid_ds *) 0);
+		shmctl(remID, IPC_RMID, (struct shmid_ds *) 0);
+		semctl(mutex, IPC_RMID, 0, (struct semid_ds *) 0);
+		semctl(empty, IPC_RMID, 0, (struct semid_ds *) 0);
+		semctl(full, IPC_RMID, 0, (struct semid_ds *) 0);
+	}
+	else
+	{
+		shmdt(p_processCount);
+		shmdt(p_buffer);
+		shmdt(p_rem);
+	}
+	
+	exit(0);
 }
 
