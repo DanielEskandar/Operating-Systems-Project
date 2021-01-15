@@ -94,10 +94,13 @@ int main(int argc, char * argv[])
 		
 		// wait until clk changes
 		while (currentTime == getClk());
-		wastedTime += (getClk() - currentTime - 1);
 		if (processesFinished != N)
 		{
 			currentTime = getClk();
+			if (p_scheduledProcess == NULL)
+			{
+				wastedTime++;
+			}
 		}		
 	}
 	#ifdef PRINTING
@@ -215,7 +218,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
 		{			
 			#ifdef PRINTING
-				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
+				printf("Scheduler: Process %d finished\n", (*p_scheduledPCB)->id);
 			#endif			
 			// increment number of finished processes
 			(*processesFinished)++;
@@ -239,7 +242,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 				// schedule next process with highest priority
 				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
 				#ifdef PRINTING
-					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 				
 				// start process and store its pid in the process table
@@ -268,14 +271,14 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			{			
 				p_scheduledProcess == NULL;
 				#ifdef PRINTING
-					printf("No process is scheduled\n");
+					printf("Scheduler: No process is scheduled\n");
 				#endif
 			}
 		}
 		else
 		{
 			#ifdef PRINTING
-				printf("Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				printf("Scheduler: Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 		}
 	}
@@ -286,7 +289,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			// schedule next process with highest priority
 			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
-				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 
 			// start process and store its pid in the process table
@@ -314,7 +317,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		else
 		{
 			#ifdef PRINTING
-				printf("No process is scheduled\n");
+				printf("Scheduler: No process is scheduled\n");
 			#endif
 		}
 	}
@@ -335,7 +338,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			p_readyQueue->processArrival = false;
 		
 			#ifdef PRINTING
-				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
+				printf("Scheduler: Process %d finished\n", (*p_scheduledPCB)->id);
 			#endif			
 			// increment number of finished processes
 			(*processesFinished)++;
@@ -362,7 +365,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 				if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
 				{
 					#ifdef PRINTING
-						printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+						printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 					#endif
 					
 					// start process and store its pid in the process table
@@ -396,7 +399,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 					(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 					
 					#ifdef PRINTING
-						printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+						printf("Scheduler: Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 					#endif
 					// write log
 					writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
@@ -406,7 +409,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			{
 				p_scheduledProcess == NULL;
 				#ifdef PRINTING
-					printf("No process is scheduled\n");
+					printf("Scheduler: No process is scheduled\n");
 				#endif
 			}
 		}
@@ -418,7 +421,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			if ((*p_scheduledProcess)->prev != -1) // if there is a new head
 			{
 				#ifdef PRINTING
-					printf("Process %d is preempted\n", (*p_scheduledProcess)->id);
+					printf("Scheduler: Process %d is preempted\n", (*p_scheduledProcess)->id);
 				#endif
 				// write log
 				writeLog(pFile, currentTime, (*p_scheduledPCB), STOPPED);
@@ -427,7 +430,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 				(*p_scheduledPCB)->state = WAITING;
 				(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 				#ifdef PRINTING
-					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 
 				// start process and store its pid in the process table
@@ -455,14 +458,14 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			else
 			{
 				#ifdef PRINTING
-					printf("Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					printf("Scheduler: Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 			}
 		}
 		else
 		{
 			#ifdef PRINTING
-				printf("Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				printf("Scheduler: Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 		}
 	}
@@ -476,7 +479,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			// schedule next process with the lowest remaining time
 			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;		
 			#ifdef PRINTING
-				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 
 			// start process and store its pid in the process table
@@ -504,7 +507,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 		else
 		{
 			#ifdef PRINTING
-				printf("No process is scheduled\n");
+				printf("Scheduler: No process is scheduled\n");
 			#endif
 		}
 	}
@@ -526,7 +529,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
 		{		
 			#ifdef PRINTING
-				printf("Process %d has finished\n", (*p_scheduledPCB)->id);
+				printf("Scheduler: Process %d finished\n", (*p_scheduledPCB)->id);
 			#endif			
 			// increment number of finished processes
 			(*processesFinished)++;
@@ -554,7 +557,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 				if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
 				{
 					#ifdef PRINTING
-						printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+						printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 					#endif
 					
 					// start process and store its pid in the process table
@@ -588,7 +591,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 					(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 					
 					#ifdef PRINTING
-						printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+						printf("Scheduler: Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 					#endif
 					// write log
 					writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
@@ -598,7 +601,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			{
 				p_scheduledProcess == NULL;
 				#ifdef PRINTING
-					printf("No process is scheduled\n");
+					printf("Scheduler: No process is scheduled\n");
 				#endif
 			}
 		}
@@ -608,7 +611,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			(*processQuantum) = 0;
 			
 			#ifdef PRINTING
-				printf("Process %d is preempted\n", (*p_scheduledProcess)->id);
+				printf("Scheduler: Process %d is preempted\n", (*p_scheduledProcess)->id);
 			#endif
 			// write log
 			writeLog(pFile, currentTime, (*p_scheduledPCB), STOPPED);
@@ -623,7 +626,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
 			{
 				#ifdef PRINTING
-					printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 				
 				// start process and store its pid in the process table
@@ -657,7 +660,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 				(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 				
 				#ifdef PRINTING
-					printf("Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+					printf("Scheduler: Process %d is resumed, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 				#endif
 				// write log
 				writeLog(pFile, currentTime, (*p_scheduledPCB), RESUMED);
@@ -666,7 +669,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		else
 		{
 			#ifdef PRINTING
-				printf("Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				printf("Scheduler: Process %d is running, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 		}
 	}
@@ -681,7 +684,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			(*p_scheduledProcess) = p_processBufferStart + p_readyQueue->head;
 			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));	
 			#ifdef PRINTING
-				printf("Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
+				printf("Scheduler: Process %d is scheduled, remaining time = %d\n", (*p_scheduledProcess)->id, (*p_scheduledProcess)->remainingTime);
 			#endif
 
 			// start process and store its pid in the process table
@@ -709,7 +712,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		else
 		{
 			#ifdef PRINTING
-				printf("No process is scheduled\n");
+				printf("Scheduler: No process is scheduled\n");
 			#endif
 		}
 	}
