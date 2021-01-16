@@ -78,6 +78,15 @@ int main(int argc, char * argv[])
 		// wait for generator to finished processing on the ready queue
 		down(scheduler_sem);
 		
+		#ifdef PRINTING
+			if (p_schedulerInfo->generationFinished)
+			{
+				printf("============\n");
+				printf("TIME STEP %d\n", currentTime);
+				printf("============\n");
+			}
+		#endif
+		
 		switch (p_schedulerInfo->schedulerType)
 		{
 			case HPF:
@@ -269,7 +278,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			}
 			else // process finished and ready queue is empty
 			{			
-				p_scheduledProcess == NULL;
+				(*p_scheduledProcess) = NULL;
 				#ifdef PRINTING
 					printf("Scheduler: No process is scheduled\n");
 				#endif
@@ -407,7 +416,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 			}
 			else // process finished and ready queue is empty
 			{
-				p_scheduledProcess == NULL;
+				(*p_scheduledProcess) = NULL;
 				#ifdef PRINTING
 					printf("Scheduler: No process is scheduled\n");
 				#endif
@@ -599,7 +608,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			}
 			else // process finished and ready queue is empty
 			{
-				p_scheduledProcess == NULL;
+				(*p_scheduledProcess) = NULL;
 				#ifdef PRINTING
 					printf("Scheduler: No process is scheduled\n");
 				#endif

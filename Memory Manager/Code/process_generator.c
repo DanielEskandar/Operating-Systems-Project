@@ -88,14 +88,6 @@ int main(int argc, char * argv[])
 		exit(-1);
 	}
 	
-	#ifdef PRINTING
-		int simTime = processArray[0].arrivalTime;
-		for (int i = 0; i < N; i++)
-		{
-			simTime += processArray[i].runningTime;
-		}
-	#endif
-	
 	// ask the user for the chosen algorithm
 	int type;
 	printf("Choose a scheduling algorithm (0:HPF 1:SRTN 2:RR): ");
@@ -124,7 +116,7 @@ int main(int argc, char * argv[])
 	while (1)
 	{
 		#ifdef PRINTING
-			if (currentTime <= simTime)
+			if (p_schedulerInfo->generationFinished)
 			{
 				printf("============\n");
 				printf("TIME STEP %d\n", currentTime);
