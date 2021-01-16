@@ -35,6 +35,19 @@
 #define EMPTY -1
 #define NOT_EMPTY 0
 
+struct waitingProcess
+{
+	struct process *p_process;
+	struct waitingProcess *next;
+	struct waitingProcess *prev;
+};
+
+struct waitingQueue
+{
+	struct waitingProcess *head;
+	struct waitingProcess *tail;
+};
+
 struct memUnit
 {
 	int id;
@@ -180,8 +193,11 @@ void dequeue(struct readyQueue *p_readyQueue, struct process *p_processBufferSta
 	if (p_process->prev == -1)
 	{
 		p_readyQueue->head = p_process->next;
-		p_nextProcess = p_processBufferStart + p_process->next;
-		p_nextProcess->prev = -1;
+		if (p_process->next != -1)
+		{
+			p_nextProcess = p_processBufferStart + p_process->next;
+			p_nextProcess->prev = -1;
+		}
 		return;
 	}
 	
@@ -325,3 +341,56 @@ void deallocate(struct process *p_process)
 	}
 }
 
+void addToWaitingList(struct waitingQueue *waitingList, struct process *p_process)
+{
+	struct waitingProcess *newWaitingProcess = (struct waitingProcess *) malloc(sizeof(struct waitingProcess));
+	newWaitingProcess->p_process = p_process;
+	
+	// corner case: waiting list is empty
+	if (waitingList->head == NULL)
+	{		
+		newWaitingProcess->prev = NULL;
+		newWaitingProcess->next = NULL;
+		waitingList->head = newWaitingProcess;
+		waitingList->tail = newWaitingProcess;
+		return;
+	}
+	
+	// insert in the tail of the waiting list
+	waitingList->tail->next = newWaitingProcess;
+	newWaitingProcess->prev = waitingList->tail;
+	newWaitingProcess->next = NULL;
+	waitingList->tail = newWaitingProcess;
+}
+
+void removeFromWaitingList(struct waitingQueue *waitingList, struct waitingProcess *p_waitingProcess)
+{
+	struct waitingProcess *p_prevWaitingProcess = p_waitingProcess->prev;
+	struct waitingProcess *p_nextWaitingProcess = p_waitingProcess->next;
+	
+	// corner case: remove head
+	if (p_prevWaitingProcess == NULL)
+	{
+		waitingList->head = p_nextWaitingProcess;
+		if (p_nextWaitingProcess != NULL)
+		{
+			p_nextWaitingProcess->prev = NULL;
+		}
+		free(p_waitingProcess);
+		return;
+	}
+	
+	// corner case: remove tail
+	if (p_nextWaitingProcess == NULL)
+	{
+		waitingList->tail = p_prevWaitingProcess;
+		p_prevWaitingProcess->next = NULL;
+		free(p_waitingProcess);
+		return;
+	}
+	
+	// normal case:	
+	p_prevWaitingProcess->next = p_waitingProcess->next;
+	p_nextWaitingProcess->prev = p_waitingProcess->prev;
+	free(p_waitingProcess);
+}
