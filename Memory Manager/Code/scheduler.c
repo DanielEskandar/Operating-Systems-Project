@@ -330,7 +330,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 			#endif
 			
 			// allocate memory for scheduled process and write log
-			(void)(pMemFile, currentTime, memory, (*p_scheduledProcess));
+			(void) tryAllocate(pMemFile, currentTime, memory, (*p_scheduledProcess));
 
 			// start process and store its pid in the process table
 			processTable[(*p_scheduledProcess)->id - 1] = createProcess(PROCESS);
