@@ -713,8 +713,11 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 			enqueue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess), ((*p_scheduledProcess)->id - 1), RR);
 			
 			// schedule and dequeue next process
-			scheduleFromReadyQueue(p_readyQueue, p_processBufferStart, waitingList, p_scheduledProcess, pMemFile, currentTime, memory);
-			dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
+			if (!scheduleFromWaitingList(waitingList, p_scheduledProcess, pMemFile, currentTime, memory))
+			{
+				scheduleFromReadyQueue(p_readyQueue, p_processBufferStart, waitingList, p_scheduledProcess, pMemFile, currentTime, memory);
+				dequeue(p_readyQueue, p_processBufferStart, (*p_scheduledProcess));
+			}
 			
 			if ((*p_scheduledProcess)->remainingTime == (*p_scheduledProcess)->runningTime) // if process is scheduled for the first time
 			{
