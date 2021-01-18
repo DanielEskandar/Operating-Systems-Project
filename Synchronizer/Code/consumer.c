@@ -79,7 +79,7 @@ int main()
 		semctl(empty, 0, SETVAL, semun);
 	}
 	
-	
+	// consumer main loop
 	while (1)
 	{
 		down(full);
