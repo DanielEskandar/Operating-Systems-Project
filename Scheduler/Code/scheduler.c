@@ -224,7 +224,7 @@ void schedulerHPF(struct readyQueue *p_readyQueue, struct process *p_processBuff
 		(*p_scheduledPCB)->remainingTime--;
 		(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 		
-		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
+		if ((*p_scheduledProcess)->remainingTime <= 0) // if the process finished execution
 		{			
 			#ifdef PRINTING
 				printf("Scheduler: Process %d finished\n", (*p_scheduledPCB)->id);
@@ -341,7 +341,7 @@ void schedulerSRTN(struct readyQueue *p_readyQueue, struct process *p_processBuf
 		(*p_scheduledPCB)->remainingTime--;
 		(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 		
-		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
+		if ((*p_scheduledProcess)->remainingTime <= 0) // if the process finished execution
 		{
 			// reset processArrival bool
 			p_readyQueue->processArrival = false;
@@ -535,7 +535,7 @@ void schedulerRR(struct readyQueue *p_readyQueue, struct process *p_processBuffe
 		(*p_scheduledPCB)->waitingTime = (currentTime - (*p_scheduledPCB)->arrivalTime) - ((*p_scheduledPCB)->executionTime - (*p_scheduledPCB)->remainingTime);
 		(*processQuantum)++;
 		
-		if ((*p_scheduledProcess)->remainingTime == 0) // if the process finished execution
+		if ((*p_scheduledProcess)->remainingTime <= 0) // if the process finished execution
 		{		
 			#ifdef PRINTING
 				printf("Scheduler: Process %d finished\n", (*p_scheduledPCB)->id);
