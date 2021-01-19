@@ -107,12 +107,9 @@ int main(int argc, char * argv[])
 	while (1)
 	{
 		#ifdef PRINTING
-			if (!p_schedulerInfo->generationFinished)
-			{
-				printf("============\n");
-				printf("TIME STEP %d\n", currentTime);
-				printf("============\n");
-			}
+			printf("============\n");
+			printf("TIME STEP %d\n", currentTime);
+			printf("============\n");
 		#endif	
 		if (!p_schedulerInfo->generationFinished)
 		{

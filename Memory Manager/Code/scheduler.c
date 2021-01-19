@@ -102,15 +102,6 @@ int main(int argc, char * argv[])
 		// wait for generator to finished processing on the ready queue
 		down(scheduler_sem);
 		
-		#ifdef PRINTING
-			if (p_schedulerInfo->generationFinished)
-			{
-				printf("============\n");
-				printf("TIME STEP %d\n", currentTime);
-				printf("============\n");
-			}
-		#endif
-		
 		switch (p_schedulerInfo->schedulerType)
 		{
 			case HPF:
