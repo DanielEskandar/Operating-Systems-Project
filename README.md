@@ -17,15 +17,21 @@ The following bash commands are used to set up and run the project.
 
 To compile the project:
 
-> make all
+```sh
+make all
+```
 
 To generate a test case:
 
-> ./test_generator.out
+```sh
+./test_generator.out
+```
 
 To run the project on the generated test case:
 
-> make run
+```sh
+make run
+```
 
 The following image shows the status of the program while running.
 
