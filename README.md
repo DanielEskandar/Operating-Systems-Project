@@ -11,7 +11,7 @@ A simulation of an operating system with scheduler, a memory manager, and a sync
 
 ---
 
-## Set Up
+## Setup
 
 The following bash commands are used to set up and run the project.
 
