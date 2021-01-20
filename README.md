@@ -1,4 +1,4 @@
-# Operating System Project
+# Operating Systems Project
 
 A simulation of an operating system with scheduler, a memory manager, and a synchronizer.
 
