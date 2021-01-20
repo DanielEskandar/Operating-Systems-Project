@@ -53,8 +53,29 @@ When a process is scheduled, a memory unit is allocated for it. The memory is im
 
 If there is not enough memory space to allocate a process, the process is added to the waiting list unitl another process finishes and frees enough memory space to allocated the waiting process. The waiting list is implemented as a linked list and is managed by the scheduler.
 
+---
+
 ## Illustrations
 
 The following diagram explains the relation between different files and data structures.
 
 ![Data Structures Diagram](Images/Diagram.png)
+
+---
+
+## Utility Functions
+
+The following table lists the utility functions used in the scheduling algorithms to manage data structures and processes.
+
+Function | Description
+-------- | -----------
+enqueue() | Inserts a new process in the ready queue.
+dequeue() | Removes a process from the ready queue.
+addToWaitingList() | Adds a process to the waiting list.
+removeFromWaitingList()  | Removes a process from the waiting list.
+allocate() | Allocates a process in a memory unit.
+splitAllocate() | Splits a memory unit and allocates a process.
+tryAllocate() | Allocates a process if possible and returns false otherwise.
+deallocate() | Deallocates a process from the memory.
+scheduleFromWaitingList() | Searches in the waiting list to schedule a process.
+scheduleFromReadyQueue() | Searches in the ready queue to schedule a process.
