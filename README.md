@@ -9,8 +9,6 @@ A simulation of an operating system with scheduler, a memory manager, and a sync
 * The memory manager using the Buddy alocation system to allocated processes in a 1024 Bytes memory.
 * The synchronizer solves the famous producer-consumer problem.
 
----
-
 ## Setup
 
 The following bash commands are used to set up and run the project.
@@ -37,8 +35,6 @@ The following image shows the status of the program while running.
 
 ![Running Scheduler](Images/RunningScheduler.png)
 
----
-
 ## Data Structures
 
 There are 4 essential data structures used to manage processes in the system:
@@ -59,15 +55,11 @@ When a process is scheduled, a memory unit is allocated for it. The memory is im
 
 If there is not enough memory space to allocate a process, the process is added to the waiting list unitl another process finishes and frees enough memory space to allocated the waiting process. The waiting list is implemented as a linked list and is managed by the scheduler.
 
----
-
 ## Illustrations
 
 The following diagram explains the relation between different files and data structures.
 
 ![Data Structures Diagram](Images/Diagram.png)
-
----
 
 ## Utility Functions
 
